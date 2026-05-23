@@ -1,2 +1,2 @@
 # chonk
-Directory size viewer
+Directory size viewer.
