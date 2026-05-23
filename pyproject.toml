@@ -1,7 +1,7 @@
 [project]
 name = "chonk"
 version = "0.1.0"
-description = "Directory size viewer."
+description = "Show disk usage of a directory's immediate children."
 readme = "README.md"
 authors = [{ name = "Kyle O'Malley", email = "j.kyle.omalley@gmail.com" }]
 requires-python = ">=3.14"
