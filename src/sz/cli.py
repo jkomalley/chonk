@@ -1,4 +1,4 @@
-from chonk.core import generate_size_report
+from sz.core import generate_size_report
 
 from pathlib import Path
 
