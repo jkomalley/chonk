@@ -1,8 +1,11 @@
 """chonk cli module."""
 
+from chonk.core import generate_size_report
+
 from pathlib import Path
 
 import argparse
+import sys
 
 
 def main() -> None:
@@ -17,6 +20,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--min-percent",
+        default=1.0,
         metavar="N",
         type=float,
         help="collapse entries below N%% into one line",
@@ -26,6 +30,10 @@ def main() -> None:
     directory: Path = args.PATH
     min_percent: float = args.min_percent
 
-    # Placeholder for actual directory size analysis logic
-    print(f"DIRECTORY: {directory.absolute()}")
-    print(f"MIN_PERCENT: {min_percent}")
+    try:
+        results = generate_size_report(directory, min_percent)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        raise SystemExit(1)
+
+    print(results, end="")

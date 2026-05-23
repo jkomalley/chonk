@@ -1,0 +1,105 @@
+"""chonk scan module."""
+
+from pathlib import Path
+import os
+
+
+def _fmt_size(n: int) -> str:
+    if n < 1024:
+        return f"{n} B"
+
+    size = float(n)
+
+    for unit in ("KB", "MB", "GB"):
+        size /= 1024
+        if size < 1024 or unit == "GB":
+            break
+
+    return f"{size:.1f} {unit}"
+
+
+def _dir_size(path: str) -> int:
+    total_size = 0
+    stack = [path]
+
+    while stack:
+        current = stack.pop()
+
+        try:
+            scandir_ctx = os.scandir(current)
+        except PermissionError:
+            continue
+
+        with scandir_ctx as dir_iter:
+            for entry in dir_iter:
+                if entry.is_symlink():
+                    continue
+                try:
+                    entry_stat = entry.stat()
+                except OSError:
+                    continue
+                if entry.is_file(follow_symlinks=False):
+                    total_size += entry_stat.st_size
+                elif entry.is_dir(follow_symlinks=False):
+                    stack.append(entry.path)
+
+    return total_size
+
+
+def generate_size_report(path: Path, min_percent: float) -> str:
+    """scan."""
+    if not path.exists():
+        msg = f"path '{path}' does not exist"
+        raise ValueError(msg)
+
+    if not path.is_dir():
+        msg = f"path '{path}' is not a directory"
+        raise ValueError(msg)
+
+    total_size: int = 0
+
+    entries: dict[str, int] = {}
+
+    try:
+        with os.scandir(path) as dir_iter:
+            for entry in dir_iter:
+                if entry.name.startswith("."):
+                    continue
+                if entry.is_symlink():
+                    continue
+                entry_stat = entry.stat()
+                if entry.is_file(follow_symlinks=False):
+                    total_size += entry_stat.st_size
+                    entries[entry.name] = entry_stat.st_size
+                elif entry.is_dir(follow_symlinks=False):
+                    entry_size = _dir_size(entry.path)
+                    total_size += entry_size
+                    entries[entry.name] = entry_size
+    except PermissionError:
+        pass
+
+    out = f"{path.absolute()}    {_fmt_size(total_size)}\n"
+
+    if not entries or total_size == 0:
+        return out
+
+    sorted_entries = sorted(entries.items(), key=lambda x: -x[-1])
+
+    above, below = [], []
+
+    for name, size in sorted_entries:
+        percent = (size / total_size) * 100
+        (above if percent >= min_percent else below).append((name, size, percent))
+
+    for entry, size, percent in above:
+        bar = "#" * round(size / total_size * 20)
+        out += f"{_fmt_size(size):>10} {percent:>3.0f}% {entry:<20} {bar}\n"
+
+    if below:
+        other_size = sum(size for _, size, _ in below)
+        other_percent = (other_size / total_size) * 100
+        other_count = len(below)
+        bar = "#" * round(other_size / total_size * 20)
+        out += f"{_fmt_size(other_size):>10} {other_percent:>3.0f}% {f'<other {other_count}>':<20} {bar}\n"
+
+    return out
