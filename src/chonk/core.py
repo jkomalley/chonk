@@ -19,6 +19,7 @@ def _fmt_size(n: int) -> str:
 
 
 def _dir_size(path: str) -> int:
+    """Return total byte size of all files under path, skipping symlinks and permission-denied entries."""
     total_size = 0
     stack = [path]
 
@@ -47,7 +48,12 @@ def _dir_size(path: str) -> int:
 
 
 def generate_size_report(path: Path, min_percent: float) -> str:
-    """scan."""
+    """Scan path's immediate children and return a formatted size report string.
+
+    Raises ValueError if path does not exist or is not a directory.
+    Hidden entries (leading dot) and symlinks are excluded from all counts.
+    Entries below min_percent of the total are collapsed into a single '<other N>' line.
+    """
     if not path.exists():
         msg = f"path '{path}' does not exist"
         raise ValueError(msg)
@@ -76,7 +82,7 @@ def generate_size_report(path: Path, min_percent: float) -> str:
                     total_size += entry_size
                     entries[entry.name] = entry_size
     except PermissionError:
-        pass
+        pass  # unreadable directory: return header with whatever was counted
 
     out = f"{path.absolute()}    {_fmt_size(total_size)}\n"
 

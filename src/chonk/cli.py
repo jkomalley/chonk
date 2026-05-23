@@ -1,5 +1,3 @@
-"""chonk cli module."""
-
 from chonk.core import generate_size_report
 
 from pathlib import Path
@@ -9,21 +7,20 @@ import sys
 
 
 def main() -> None:
-    """Main entry point for the chonk CLI."""
-    parser = argparse.ArgumentParser(description="Directory size viewer.")
+    parser = argparse.ArgumentParser(description="Show disk usage of a directory's immediate children.")
     parser.add_argument(
         "PATH",
         nargs="?",
         default=".",
         type=Path,
-        help="directory to scan. Defaults to current directory.",
+        help="directory to scan (default: current directory)",
     )
     parser.add_argument(
         "--min-percent",
         default=1.0,
         metavar="N",
         type=float,
-        help="collapse entries below N%% into one line",
+        help="collapse entries below N%% of total into one '<other>' line (default: 1.0)",
     )
     args = parser.parse_args()
 
