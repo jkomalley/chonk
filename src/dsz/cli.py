@@ -1,4 +1,4 @@
-from sz.core import generate_size_report
+from dsz.core import generate_size_report
 
 from pathlib import Path
 

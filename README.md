@@ -1,17 +1,17 @@
-# chonk
+# dsz
 
 Show disk usage of a directory's immediate children, sorted by size.
 
 ## Installation
 
 ```
-uv tool install chonk
+uv tool install dsz
 ```
 
 ## Usage
 
 ```
-chonk [PATH] [--min-percent N]
+dsz [PATH] [--min-percent N]
 ```
 
 - `PATH` — directory to scan (default: current directory)
@@ -20,10 +20,8 @@ chonk [PATH] [--min-percent N]
 ## Example
 
 ```
-$ chonk ~
-
+$ dsz ~
 /home/user    24.2 GB
-
    18.2 GB  75% Videos               ###############
     4.1 GB  17% Documents            ###
     1.6 GB   7% Downloads            #

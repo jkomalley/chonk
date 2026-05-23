@@ -1,4 +1,4 @@
-"""sz scan module."""
+"""dsz scan module."""
 
 from pathlib import Path
 import os
