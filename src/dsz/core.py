@@ -93,12 +93,40 @@ def _dir_size(path: str) -> int:
     return total_size
 
 
+def _child_size(entry: os.DirEntry[str]) -> int:
+    """Return an immediate child's byte size: itself, or its subtree total.
+
+    Args:
+        entry: A scandir entry already confirmed to not be hidden or a
+            symlink.
+
+    Returns:
+        `_dir_size(entry.path)` for a directory, `_leaf_size(entry)`
+        otherwise.
+    """
+    if entry.is_dir(follow_symlinks=False):
+        return _dir_size(entry.path)
+    return _leaf_size(entry)
+
+
 def generate_size_report(path: Path, min_percent: float) -> str:
     """Scan path's immediate children and return a formatted size report string.
 
-    Raises ValueError if path does not exist or is not a directory.
-    Hidden entries (leading dot) and symlinks are excluded from all counts.
-    Entries below min_percent of the total are collapsed into a single '<other N>' line.
+    Args:
+        path: Directory to scan.
+        min_percent: Entries below this percentage of the total are
+            collapsed into a single "<other N>" line.
+
+    Returns:
+        A header line ("<absolute path>    <total size>") followed by one
+        line per child at or above min_percent, sorted by size descending,
+        with a trailing "<other N>" line for anything collapsed. Hidden
+        entries (leading dot) and symlinks are excluded entirely. Other
+        filesystem object types (FIFOs, sockets, device files) are listed
+        but always contribute 0 bytes.
+
+    Raises:
+        ValueError: If path does not exist or is not a directory.
     """
     if not path.exists():
         msg = f"path '{path}' does not exist"
@@ -108,50 +136,48 @@ def generate_size_report(path: Path, min_percent: float) -> str:
         msg = f"path '{path}' is not a directory"
         raise ValueError(msg)
 
-    total_size: int = 0
-
-    entries: dict[str, int] = {}
-
     try:
         with os.scandir(path) as dir_iter:
-            for entry in dir_iter:
-                if entry.name.startswith("."):
-                    continue
-                if entry.is_symlink():
-                    continue
-                entry_stat = entry.stat()
-                if entry.is_file(follow_symlinks=False):
-                    total_size += entry_stat.st_size
-                    entries[entry.name] = entry_stat.st_size
-                elif entry.is_dir(follow_symlinks=False):
-                    entry_size = _dir_size(entry.path)
-                    total_size += entry_size
-                    entries[entry.name] = entry_size
-    except PermissionError:
-        pass  # unreadable directory: return header with whatever was counted
+            children = [
+                entry
+                for entry in dir_iter
+                if not entry.name.startswith(".") and not entry.is_symlink()
+            ]
+    except OSError:
+        # Unreadable or vanished directory: report a total of 0 rather than
+        # raising -- path was just confirmed to exist and be a directory
+        # above, so this is a race, not a usage error.
+        children = []
 
-    out = f"{path.absolute()}    {_fmt_size(total_size)}\n"
+    entries = {entry.name: _child_size(entry) for entry in children}
+    total_size = sum(entries.values())
 
-    if not entries or total_size == 0:
-        return out
+    out_lines = [f"{path.absolute()}    {_fmt_size(total_size)}"]
 
-    sorted_entries = sorted(entries.items(), key=lambda x: -x[-1])
+    if not entries:
+        return "\n".join(out_lines) + "\n"
 
-    above, below = [], []
+    sorted_entries = sorted(entries.items(), key=lambda item: item[1], reverse=True)
 
+    above: list[tuple[str, int, float]] = []
+    below: list[tuple[str, int, float]] = []
     for name, size in sorted_entries:
-        percent = (size / total_size) * 100
+        percent = (size / total_size * 100) if total_size else 0.0
         (above if percent >= min_percent else below).append((name, size, percent))
 
-    for entry, size, percent in above:
-        bar = "#" * round(size / total_size * 20)
-        out += f"{_fmt_size(size):>10} {percent:>3.0f}% {entry:<20} {bar}\n"
+    for name, size, percent in above:
+        bar = "#" * round(percent / 5)
+        out_lines.append(f"{_fmt_size(size):>10} {percent:>3.0f}% {name:<20} {bar}")
 
     if below:
         other_size = sum(size for _, size, _ in below)
-        other_percent = (other_size / total_size) * 100
+        other_percent = (other_size / total_size * 100) if total_size else 0.0
         other_count = len(below)
-        bar = "#" * round(other_size / total_size * 20)
-        out += f"{_fmt_size(other_size):>10} {other_percent:>3.0f}% {f'<other {other_count}>':<20} {bar}\n"
+        bar = "#" * round(other_percent / 5)
+        other_label = f"<other {other_count}>"
+        out_lines.append(
+            f"{_fmt_size(other_size):>10} {other_percent:>3.0f}% "
+            f"{other_label:<20} {bar}"
+        )
 
-    return out
+    return "\n".join(out_lines) + "\n"

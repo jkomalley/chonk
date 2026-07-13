@@ -134,3 +134,121 @@ class TestDirSize:
         monkeypatch.setattr(core.os, "scandir", flaky_scandir)
 
         assert core._dir_size(str(tmp_path)) == 100
+
+
+class _FakeScandirContext:
+    def __init__(self, entries):
+        self._entries = entries
+
+    def __enter__(self):
+        return iter(self._entries)
+
+    def __exit__(self, *exc_info):
+        return False
+
+
+@pytest.fixture
+def tree(tmp_path):
+    """A small real directory tree: two files, one hidden file, one subdir.
+
+    Layout: big.bin (3000 B), small.bin (100 B), .hidden (999999 B, excluded),
+    sub/nested.bin (500 B). Non-hidden total: 3600 B.
+    """
+    (tmp_path / "big.bin").write_bytes(b"\0" * 3000)
+    (tmp_path / "small.bin").write_bytes(b"\0" * 100)
+    (tmp_path / ".hidden").write_bytes(b"\0" * 999999)
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "nested.bin").write_bytes(b"\0" * 500)
+    return tmp_path
+
+
+class TestChildSize:
+    def test_dispatches_to_dir_size_for_directories(self, tree):
+        with os.scandir(tree) as it:
+            sub_entry = next(e for e in it if e.name == "sub")
+        assert core._child_size(sub_entry) == 500
+
+    def test_dispatches_to_leaf_size_for_files(self, tree):
+        with os.scandir(tree) as it:
+            file_entry = next(e for e in it if e.name == "big.bin")
+        assert core._child_size(file_entry) == 3000
+
+
+class TestGenerateSizeReport:
+    def test_raises_for_missing_path(self, tmp_path):
+        missing = tmp_path / "does-not-exist"
+        with pytest.raises(ValueError, match="does not exist"):
+            core.generate_size_report(missing, min_percent=1.0)
+
+    def test_raises_for_non_directory(self, tmp_path):
+        file_path = tmp_path / "file.txt"
+        file_path.write_text("x")
+        with pytest.raises(ValueError, match="is not a directory"):
+            core.generate_size_report(file_path, min_percent=1.0)
+
+    def test_excludes_hidden_and_symlinks(self, tree):
+        target = tree / "big.bin"
+        (tree / "link").symlink_to(target)
+
+        report = core.generate_size_report(tree, min_percent=0.0)
+
+        assert ".hidden" not in report
+        assert "link" not in report
+        assert "big.bin" in report
+
+    def test_sorts_descending_and_collapses_small_entries(self, tree):
+        report = core.generate_size_report(tree, min_percent=10.0)
+
+        lines = report.splitlines()
+        assert "big.bin" in lines[1]  # biggest entry listed first
+        assert "<other 1>" in report  # small.bin (2.8%) collapses
+
+    def test_header_reports_correct_total(self, tree):
+        report = core.generate_size_report(tree, min_percent=0.0)
+        assert f"{tree.absolute()}    3.5 KB" in report
+
+    def test_lists_entries_when_total_is_zero(self, tmp_path):
+        (tmp_path / "empty1.txt").touch()
+        (tmp_path / "empty2.txt").touch()
+
+        report = core.generate_size_report(tmp_path, min_percent=0.0)
+
+        assert "empty1.txt" in report
+        assert "empty2.txt" in report
+
+    def test_tolerates_scandir_failure_on_scan_root(self, tmp_path, monkeypatch):
+        def raise_error(_path):
+            raise FileNotFoundError(str(tmp_path))
+
+        monkeypatch.setattr(core.os, "scandir", raise_error)
+
+        report = core.generate_size_report(tmp_path, min_percent=1.0)
+
+        assert report == f"{tmp_path.absolute()}    0 B\n"
+
+    def test_does_not_lose_siblings_after_one_entry_errors(self, monkeypatch, tmp_path):
+        entries = [
+            _FakeEntry(name="a.txt", is_file=True, size=100),
+            _FakeEntry(
+                name="b.txt", is_file=True, stat_error=PermissionError("denied")
+            ),
+            _FakeEntry(name="c.txt", is_file=True, size=300),
+        ]
+        monkeypatch.setattr(
+            core.os, "scandir", lambda _path: _FakeScandirContext(entries)
+        )
+
+        report = core.generate_size_report(tmp_path, min_percent=0.0)
+
+        assert "a.txt" in report
+        assert "c.txt" in report
+        assert "400 B" in report  # a (100) + b (0, errored) + c (300)
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are POSIX-only")
+    def test_lists_fifo_with_zero_size(self, tmp_path):
+        os.mkfifo(tmp_path / "mypipe")
+
+        report = core.generate_size_report(tmp_path, min_percent=0.0)
+
+        assert "mypipe" in report
