@@ -4,15 +4,30 @@ from pathlib import Path
 import os
 
 
+_UNITS: tuple[str, ...] = ("KB", "MB", "GB", "TB", "PB")
+
+
 def _fmt_size(n: int) -> str:
+    """Format a byte count as a human-readable string.
+
+    Args:
+        n: A non-negative byte count.
+
+    Returns:
+        The size formatted with the largest unit that keeps the displayed,
+        rounded value under 1024 (e.g. "512 B", "1.5 MB"), capped at "PB".
+    """
     if n < 1024:
         return f"{n} B"
 
     size = float(n)
-
-    for unit in ("KB", "MB", "GB"):
+    unit = _UNITS[0]
+    for unit in _UNITS:
         size /= 1024
-        if size < 1024 or unit == "GB":
+        # Compare the *rounded* value against 1024, not the raw value --
+        # otherwise a size that rounds up to "1024.0 KB" at display time
+        # (e.g. 1048575 bytes) would stop one unit too early.
+        if round(size, 1) < 1024 or unit == _UNITS[-1]:
             break
 
     return f"{size:.1f} {unit}"
