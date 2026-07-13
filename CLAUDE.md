@@ -46,8 +46,10 @@ Key design decisions:
   single most important invariant in `core.py`; if you touch scanning logic,
   preserve it (see `tests/test_core.py::TestGenerateSizeReport::test_does_not_lose_siblings_after_one_entry_errors`
   for the regression this guards).
-- **Hidden entries (leading dot) and symlinks are excluded entirely** at
-  every level, not just the scan root.
+- **Symlinks are excluded entirely at every level.** Hidden entries
+  (leading dot) are excluded only from the top-level listing (both from
+  display and from the total) -- a subdirectory's own hidden files are
+  still counted toward its total, matching `du`-like behavior.
 - **Non-regular-file entries (FIFOs, sockets, device files) are listed but
   always size 0** -- they don't have a meaningful disk-usage figure.
 
