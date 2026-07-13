@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 
-def test_module_invocation_reports_on_current_directory(tmp_path):
+def test_module_invocation_reports_on_given_directory(tmp_path):
     (tmp_path / "f.bin").write_bytes(b"\0" * 10)
 
     result = subprocess.run(
