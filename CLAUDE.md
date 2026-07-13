@@ -45,7 +45,11 @@ Key design decisions:
   it's never silently dropped, and it never crashes the scan. This is the
   single most important invariant in `core.py`; if you touch scanning logic,
   preserve it (see `tests/test_core.py::TestGenerateSizeReport::test_does_not_lose_siblings_after_one_entry_errors`
-  for the regression this guards).
+  for the regression this guards). The one deliberate exception: a top-level
+  entry whose `is_symlink()` check itself raises `OSError` is dropped from
+  the listing rather than sized as 0, since its symlink-ness (and therefore
+  whether it should be excluded) can't be determined -- see
+  `test_does_not_lose_siblings_after_one_entry_is_symlink_errors`.
 - **Symlinks are excluded entirely at every level.** Hidden entries
   (leading dot) are excluded only from the top-level listing (both from
   display and from the total) -- a subdirectory's own hidden files are
