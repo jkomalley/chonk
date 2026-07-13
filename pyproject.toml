@@ -1,6 +1,6 @@
 [project]
 name = "dsz"
-version = "0.1.0"
+version = "0.2.0"
 description = "Show disk usage of a directory's immediate children."
 readme = "README.md"
 authors = [{ name = "Kyle O'Malley", email = "j.kyle.omalley@gmail.com" }]
@@ -28,6 +28,7 @@ classifiers = [
 Homepage = "https://github.com/jkomalley/dsz"
 Repository = "https://github.com/jkomalley/dsz"
 Issues = "https://github.com/jkomalley/dsz/issues"
+Changelog = "https://github.com/jkomalley/dsz/blob/main/CHANGELOG.md"
 
 [project.scripts]
 dsz = "dsz.cli:main"
