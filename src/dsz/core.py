@@ -1,7 +1,12 @@
 """dsz scan module."""
 
-from pathlib import Path
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 _UNITS: tuple[str, ...] = ("KB", "MB", "GB", "TB", "PB")
@@ -33,31 +38,57 @@ def _fmt_size(n: int) -> str:
     return f"{size:.1f} {unit}"
 
 
+def _leaf_size(entry: os.DirEntry[str]) -> int:
+    """Return a non-directory, non-symlink entry's byte size.
+
+    Args:
+        entry: A scandir entry already confirmed to not be a symlink.
+
+    Returns:
+        The entry's byte size if it's a regular file; 0 for other entry
+        types (FIFOs, sockets, device files), which don't have a
+        meaningful "disk usage" figure to sum. Also returns 0 if the
+        entry vanishes or becomes unreadable between being listed and
+        being stat'd here -- a race under concurrent filesystem activity
+        -- so one bad entry doesn't abort the scan of its siblings.
+    """
+    try:
+        stat = entry.stat()
+    except OSError:
+        return 0
+    return stat.st_size if entry.is_file(follow_symlinks=False) else 0
+
+
 def _dir_size(path: str) -> int:
-    """Return total byte size of all files under path, skipping symlinks and permission-denied entries."""
+    """Return the total byte size of all files under path.
+
+    Args:
+        path: Directory to scan, recursively.
+
+    Returns:
+        The sum of every regular file's size under path. Symlinks are
+        skipped. Directories that can't be listed (permission denied,
+        removed mid-scan) contribute 0 rather than raising, so one
+        unreadable subtree doesn't abort the rest of the scan.
+    """
     total_size = 0
     stack = [path]
 
     while stack:
         current = stack.pop()
-
         try:
-            scandir_ctx = os.scandir(current)
-        except PermissionError:
+            dir_iter_ctx = os.scandir(current)
+        except OSError:
             continue
 
-        with scandir_ctx as dir_iter:
+        with dir_iter_ctx as dir_iter:
             for entry in dir_iter:
                 if entry.is_symlink():
                     continue
-                try:
-                    entry_stat = entry.stat()
-                except OSError:
-                    continue
-                if entry.is_file(follow_symlinks=False):
-                    total_size += entry_stat.st_size
-                elif entry.is_dir(follow_symlinks=False):
+                if entry.is_dir(follow_symlinks=False):
                     stack.append(entry.path)
+                else:
+                    total_size += _leaf_size(entry)
 
     return total_size
 
