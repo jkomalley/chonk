@@ -252,3 +252,13 @@ class TestGenerateSizeReport:
         report = core.generate_size_report(tmp_path, min_percent=0.0)
 
         assert "mypipe" in report
+
+    def test_sums_multiple_subdirectories_correctly(self, tmp_path):
+        for i in range(5):
+            sub = tmp_path / f"sub{i}"
+            sub.mkdir()
+            (sub / "f.bin").write_bytes(b"\0" * 100)
+
+        report = core.generate_size_report(tmp_path, min_percent=0.0)
+
+        assert "500 B" in report  # 5 subdirs x 100 bytes, summed correctly

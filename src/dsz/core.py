@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -149,8 +150,11 @@ def generate_size_report(path: Path, min_percent: float) -> str:
         # above, so this is a race, not a usage error.
         children = []
 
-    entries = {entry.name: _child_size(entry) for entry in children}
-    total_size = sum(entries.values())
+    with ThreadPoolExecutor() as pool:
+        sizes = list(pool.map(_child_size, children))
+
+    entries = dict(zip((c.name for c in children), sizes, strict=True))
+    total_size = sum(sizes)
 
     out_lines = [f"{path.absolute()}    {_fmt_size(total_size)}"]
 
