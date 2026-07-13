@@ -1,6 +1,6 @@
 [project]
 name = "dsz"
-version = "0.1.0"
+version = "0.2.0"
 description = "Show disk usage of a directory's immediate children."
 readme = "README.md"
 authors = [{ name = "Kyle O'Malley", email = "j.kyle.omalley@gmail.com" }]
