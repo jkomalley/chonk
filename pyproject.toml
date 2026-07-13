@@ -87,9 +87,13 @@ convention = "google"
     "D",      # no docstring requirements in tests
     "ANN",    # no type annotation requirements in tests
     "SLF001", # allow access to private members in tests
+    "INP001", # tests/ is a pytest rootdir-based test suite, not an importable package
 ]
 "src/dsz/cli.py" = [
     "T201",   # print() is the primary output mechanism for CLI
+]
+"tests/test_cli_subprocess.py" = [
+    "S603",   # sys.executable with a fixed, hardcoded argv -- not untrusted input
 ]
 
 # --------------------------------------------------------------------------- #

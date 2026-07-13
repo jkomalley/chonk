@@ -54,7 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=1.0,
         metavar="N",
         type=_percent,
-        help="collapse entries below N%% of total into one '<other>' line (default: 1.0)",
+        help="collapse entries below N%% of total into '<other>' (default: 1.0)",
     )
     return parser
 

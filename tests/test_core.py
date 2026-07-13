@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -34,7 +35,7 @@ class _FakeEntry:
     type) without depending on OS/filesystem specifics.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         name: str = "fake",
@@ -83,7 +84,7 @@ class TestLeafSize:
         (tmp_path / "ephemeral.bin").write_bytes(b"\0" * 10)
         with os.scandir(tmp_path) as it:
             entry = next(it)
-        os.remove(entry.path)
+        Path(entry.path).unlink()
         assert core._leaf_size(entry) == 0
 
     def test_returns_zero_when_stat_raises_permission_error(self):
