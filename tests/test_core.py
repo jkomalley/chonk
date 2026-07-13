@@ -45,6 +45,7 @@ class _FakeEntry:
         is_symlink: bool = False,
         size: int = 0,
         stat_error: OSError | None = None,
+        is_symlink_error: OSError | None = None,
     ) -> None:
         self.name = name
         self.path = path
@@ -53,8 +54,11 @@ class _FakeEntry:
         self._is_symlink = is_symlink
         self._size = size
         self._stat_error = stat_error
+        self._is_symlink_error = is_symlink_error
 
     def is_symlink(self) -> bool:
+        if self._is_symlink_error is not None:
+            raise self._is_symlink_error
         return self._is_symlink
 
     def is_dir(self, *, follow_symlinks: bool = True) -> bool:  # noqa: ARG002
@@ -63,7 +67,7 @@ class _FakeEntry:
     def is_file(self, *, follow_symlinks: bool = True) -> bool:  # noqa: ARG002
         return self._is_file
 
-    def stat(self) -> os.stat_result:
+    def stat(self, *, follow_symlinks: bool = True) -> os.stat_result:  # noqa: ARG002
         if self._stat_error is not None:
             raise self._stat_error
         return os.stat_result((0, 0, 0, 0, 0, 0, self._size, 0, 0, 0))
@@ -119,6 +123,23 @@ class TestDirSize:
         monkeypatch.setattr(core.os, "scandir", raise_error)
 
         assert core._dir_size(str(tmp_path)) == 0
+
+    def test_skips_entry_whose_is_symlink_check_raises(self, tmp_path, monkeypatch):
+        entries = [
+            _FakeEntry(name="a.txt", is_file=True, size=100),
+            _FakeEntry(
+                name="b.txt",
+                is_file=True,
+                size=999,
+                is_symlink_error=PermissionError("denied"),
+            ),
+            _FakeEntry(name="c.txt", is_file=True, size=300),
+        ]
+        monkeypatch.setattr(
+            core.os, "scandir", lambda _path: _FakeScandirContext(entries)
+        )
+
+        assert core._dir_size(str(tmp_path)) == 400  # a (100) + c (300)
 
     def test_skips_subdirectory_that_vanishes_mid_walk(self, tmp_path, monkeypatch):
         (tmp_path / "readable.bin").write_bytes(b"\0" * 100)
@@ -245,6 +266,30 @@ class TestGenerateSizeReport:
         assert "a.txt" in report
         assert "c.txt" in report
         assert "400 B" in report  # a (100) + b (0, errored) + c (300)
+
+    def test_does_not_lose_siblings_after_one_entry_is_symlink_errors(
+        self, monkeypatch, tmp_path
+    ):
+        entries = [
+            _FakeEntry(name="a.txt", is_file=True, size=100),
+            _FakeEntry(
+                name="b.txt",
+                is_file=True,
+                size=999,
+                is_symlink_error=PermissionError("denied"),
+            ),
+            _FakeEntry(name="c.txt", is_file=True, size=300),
+        ]
+        monkeypatch.setattr(
+            core.os, "scandir", lambda _path: _FakeScandirContext(entries)
+        )
+
+        report = core.generate_size_report(tmp_path, min_percent=0.0)
+
+        assert "a.txt" in report
+        assert "c.txt" in report
+        assert "b.txt" not in report  # skipped, not silently kept
+        assert "400 B" in report  # a (100) + c (300); b excluded entirely
 
     @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are POSIX-only")
     def test_lists_fifo_with_zero_size(self, tmp_path):

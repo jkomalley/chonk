@@ -54,10 +54,16 @@ def _leaf_size(entry: os.DirEntry[str]) -> int:
         -- so one bad entry doesn't abort the scan of its siblings.
     """
     try:
-        stat = entry.stat()
+        stat = entry.stat(follow_symlinks=False)
     except OSError:
         return 0
     return stat.st_size if entry.is_file(follow_symlinks=False) else 0
+
+
+def _format_row(name: str, size: int, percent: float) -> str:
+    """Format one report line: size, percent, name, and a proportional bar."""
+    bar = "#" * round(percent / 5)
+    return f"{_fmt_size(size):>10} {percent:>3.0f}% {name:<20} {bar}"
 
 
 def _dir_size(path: str) -> int:
@@ -70,7 +76,10 @@ def _dir_size(path: str) -> int:
         The sum of every regular file's size under path. Symlinks are
         skipped. Directories that can't be listed (permission denied,
         removed mid-scan) contribute 0 rather than raising, so one
-        unreadable subtree doesn't abort the rest of the scan.
+        unreadable subtree doesn't abort the rest of the scan. An entry
+        whose `is_symlink()`/`is_dir()` check itself raises `OSError` (seen
+        on filesystems that don't expose `d_type` from `readdir()`) is
+        skipped without affecting its siblings.
     """
     total_size = 0
     stack = [path]
@@ -84,9 +93,17 @@ def _dir_size(path: str) -> int:
 
         with dir_iter_ctx as dir_iter:
             for entry in dir_iter:
-                if entry.is_symlink():
+                try:
+                    is_symlink = entry.is_symlink()
+                    is_dir = not is_symlink and entry.is_dir(follow_symlinks=False)
+                except OSError:
+                    # is_symlink()/is_dir() can raise on filesystems that
+                    # don't expose d_type from readdir() (NFS, FAT, some
+                    # FUSE mounts) -- skip just this entry, keep its siblings.
                     continue
-                if entry.is_dir(follow_symlinks=False):
+                if is_symlink:
+                    continue
+                if is_dir:
                     stack.append(entry.path)
                 else:
                     total_size += _leaf_size(entry)
@@ -108,6 +125,39 @@ def _child_size(entry: os.DirEntry[str]) -> int:
     if entry.is_dir(follow_symlinks=False):
         return _dir_size(entry.path)
     return _leaf_size(entry)
+
+
+def _list_children(path: Path) -> list[os.DirEntry[str]]:
+    """List path's non-hidden, non-symlink immediate children.
+
+    Args:
+        path: Directory to list.
+
+    Returns:
+        Every entry whose name doesn't start with "." and that isn't a
+        symlink. An entry whose `is_symlink()` check itself raises
+        `OSError` (seen on filesystems that don't expose `d_type` from
+        `readdir()`) is skipped without affecting its siblings. An empty
+        list is returned if `path` itself can't be listed (permission
+        denied, removed mid-scan) rather than raising -- that's a race,
+        not a usage error, since the caller already confirmed `path`
+        exists and is a directory.
+    """
+    children: list[os.DirEntry[str]] = []
+    try:
+        with os.scandir(path) as dir_iter:
+            for entry in dir_iter:
+                if entry.name.startswith("."):
+                    continue
+                try:
+                    if entry.is_symlink():
+                        continue
+                except OSError:
+                    continue
+                children.append(entry)
+    except OSError:
+        return []
+    return children
 
 
 def generate_size_report(path: Path, min_percent: float) -> str:
@@ -137,18 +187,7 @@ def generate_size_report(path: Path, min_percent: float) -> str:
         msg = f"path '{path}' is not a directory"
         raise ValueError(msg)
 
-    try:
-        with os.scandir(path) as dir_iter:
-            children = [
-                entry
-                for entry in dir_iter
-                if not entry.name.startswith(".") and not entry.is_symlink()
-            ]
-    except OSError:
-        # Unreadable or vanished directory: report a total of 0 rather than
-        # raising -- path was just confirmed to exist and be a directory
-        # above, so this is a race, not a usage error.
-        children = []
+    children = _list_children(path)
 
     with ThreadPoolExecutor() as pool:
         sizes = list(pool.map(_child_size, children))
@@ -170,18 +209,12 @@ def generate_size_report(path: Path, min_percent: float) -> str:
         (above if percent >= min_percent else below).append((name, size, percent))
 
     for name, size, percent in above:
-        bar = "#" * round(percent / 5)
-        out_lines.append(f"{_fmt_size(size):>10} {percent:>3.0f}% {name:<20} {bar}")
+        out_lines.append(_format_row(name, size, percent))
 
     if below:
         other_size = sum(size for _, size, _ in below)
         other_percent = (other_size / total_size * 100) if total_size else 0.0
-        other_count = len(below)
-        bar = "#" * round(other_percent / 5)
-        other_label = f"<other {other_count}>"
-        out_lines.append(
-            f"{_fmt_size(other_size):>10} {other_percent:>3.0f}% "
-            f"{other_label:<20} {bar}"
-        )
+        other_label = f"<other {len(below)}>"
+        out_lines.append(_format_row(other_label, other_size, other_percent))
 
     return "\n".join(out_lines) + "\n"
