@@ -1,13 +1,47 @@
-from dsz.core import generate_size_report
+"""dsz CLI -- show disk usage of a directory's immediate children.
 
-from pathlib import Path
+Public surface:
+    main()  -- entry point registered as the "dsz" command
+"""
+
+from __future__ import annotations
 
 import argparse
+import math
 import sys
+from pathlib import Path
+
+from dsz.core import generate_size_report
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Show disk usage of a directory's immediate children.")
+def _percent(raw: str) -> float:
+    """Parse and validate a --min-percent value.
+
+    Args:
+        raw: The raw command-line argument string.
+
+    Returns:
+        The parsed value, guaranteed to be a finite number in [0, 100].
+
+    Raises:
+        argparse.ArgumentTypeError: If raw isn't a finite number in [0, 100].
+    """
+    try:
+        value = float(raw)
+    except ValueError as e:
+        msg = f"invalid float value: {raw!r}"
+        raise argparse.ArgumentTypeError(msg) from e
+    if math.isnan(value) or not 0 <= value <= 100:
+        msg = f"--min-percent must be between 0 and 100, got {raw!r}"
+        raise argparse.ArgumentTypeError(msg)
+    return value
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build and return the argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Show disk usage of a directory's immediate children."
+    )
     parser.add_argument(
         "PATH",
         nargs="?",
@@ -19,9 +53,15 @@ def main() -> None:
         "--min-percent",
         default=1.0,
         metavar="N",
-        type=float,
-        help="collapse entries below N%% of total into one '<other>' line (default: 1.0)",
+        type=_percent,
+        help="collapse entries below N%% of total into '<other>' (default: 1.0)",
     )
+    return parser
+
+
+def main() -> None:
+    """Parse arguments, generate the report, and print it (or a clean error)."""
+    parser = _build_parser()
     args = parser.parse_args()
 
     directory: Path = args.PATH
@@ -29,8 +69,8 @@ def main() -> None:
 
     try:
         results = generate_size_report(directory, min_percent)
-    except ValueError as e:
+    except (ValueError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from e
 
     print(results, end="")

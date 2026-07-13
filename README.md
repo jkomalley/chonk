@@ -15,7 +15,7 @@ dsz [PATH] [--min-percent N]
 ```
 
 - `PATH` — directory to scan (default: current directory)
-- `--min-percent N` — collapse entries below N% of the total into a single `<other>` line (default: 1.0)
+- `--min-percent N` — collapse entries below N% of the total into a single `<other>` line (default: 1.0; N must be between 0 and 100)
 
 ## Example
 
