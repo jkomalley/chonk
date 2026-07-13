@@ -66,6 +66,9 @@ Key design decisions:
   directory-scanning implementations drifting out of sync was the root cause
   of several bugs fixed early in this project's history -- keep scanning
   logic in one place.)
+- Every release gets a `CHANGELOG.md` entry (Keep a Changelog format) added
+  in the same PR as the version bump in `pyproject.toml`. After publishing,
+  create the GitHub release with `gh release create vX.Y.Z --generate-notes`.
 
 ## Code Style
 

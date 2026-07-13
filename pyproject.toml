@@ -28,6 +28,7 @@ classifiers = [
 Homepage = "https://github.com/jkomalley/dsz"
 Repository = "https://github.com/jkomalley/dsz"
 Issues = "https://github.com/jkomalley/dsz/issues"
+Changelog = "https://github.com/jkomalley/dsz/blob/main/CHANGELOG.md"
 
 [project.scripts]
 dsz = "dsz.cli:main"
