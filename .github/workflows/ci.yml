@@ -10,6 +10,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
@@ -38,8 +39,7 @@ jobs:
   # Guards against mis-numbered releases: if a PR bumps the version, the bump
   # must be large enough for the conventional-commit types merged since the last
   # release tag (a feat -> minor, a breaking change -> major). Non-release PRs
-  # (no version change) pass trivially. Born from 0.1.2, which shipped features
-  # as a patch and had to be retracted in favor of 0.2.0.
+  # (no version change) pass trivially.
   version-guard:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
