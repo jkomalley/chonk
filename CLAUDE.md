@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Lint:** `uv run ruff check src/ tests/`
 - **Format:** `uv run ruff format src/ tests/`
 - **Type check:** `uv run ty check src/`
-- **Everything:** `just` (runs format + lint + typecheck + test)
+- **Everything:** `just check` (format + lint + typecheck + tests with coverage)
 
 ## Architecture
 
