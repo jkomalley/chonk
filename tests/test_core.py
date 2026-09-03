@@ -313,3 +313,4 @@ class TestGenerateSizeReport:
 def test_deliberately_failing_alert_probe() -> None:
     """Temporary: proves the Dependabot failure-alert workflow fires."""
     assert 1 == 2
+
