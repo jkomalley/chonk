@@ -28,7 +28,10 @@ def _fmt_size(n: int) -> str:
 
     size = float(n)
     unit = _UNITS[0]
-    for unit in _UNITS:
+    # no branch: the loop can never run to exhaustion -- the last iteration's
+    # `unit == _UNITS[-1]` always breaks -- so its exhaustion arc is dead code
+    # that no test can reach.
+    for unit in _UNITS:  # pragma: no branch
         size /= 1024
         # Compare the *rounded* value against 1024, not the raw value --
         # otherwise a size that rounds up to "1024.0 KB" at display time

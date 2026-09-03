@@ -80,6 +80,10 @@ Key design decisions:
 
 ## Testing Notes
 
+- 100% coverage (statement *and* branch) is a hard gate: `--cov` and
+  `--cov-fail-under=100` live in `[tool.pytest.ini_options] addopts`, so every
+  `uv run pytest` measures coverage and any run below 100% exits non-zero even
+  when every test passes. Every new branch needs a test.
 - Tests use real filesystem operations via pytest's `tmp_path`, not mocks,
   wherever practical -- this is a filesystem tool, and the real syscalls are
   what actually need to behave correctly.
