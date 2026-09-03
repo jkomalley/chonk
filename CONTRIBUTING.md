@@ -128,9 +128,15 @@ commits since the last release (for example, shipping a `feat:` as a patch).
 Features merged to `main` without a release accumulate, so the bump must account
 for all of them, not just the most recent change.
 
-Once the bump is on `main`, publishing to PyPI is triggered by running the
-**Publish: PyPI** workflow from the Actions tab, then creating the GitHub
-release with `gh release create`.
+Once the bump is on `main`, the rest is automatic. `cd.yml` runs after CI
+succeeds, compares the version against PyPI, and no-ops if it is already
+published. Otherwise it extracts the `## [x.y.z]` section of `CHANGELOG.md`
+for the release notes, builds, publishes via PyPI trusted publishing, then
+tags `vX.Y.Z` and creates the GitHub release. Tagging and release creation
+are the last steps, downstream of a successful publish -- never the trigger.
+
+A missing changelog entry fails the release **before** anything is published,
+rather than shipping empty notes.
 
 ## License
 
