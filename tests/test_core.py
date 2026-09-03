@@ -308,3 +308,8 @@ class TestGenerateSizeReport:
         report = core.generate_size_report(tmp_path, min_percent=0.0)
 
         assert "500 B" in report  # 5 subdirs x 100 bytes, summed correctly
+
+
+def test_deliberately_failing_alert_probe() -> None:
+    """Temporary: proves the Dependabot failure-alert workflow fires."""
+    assert 1 == 2
